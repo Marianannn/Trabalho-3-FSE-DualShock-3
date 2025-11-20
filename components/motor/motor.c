@@ -6,10 +6,9 @@
 #include "esp_system.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
+#include "motor.h"
 
 
-#define MOTOR_1 2 // por enquanto está com esses numeros por eu estar testando através de um led
-#define MOTOR_2 2
 
 // O duty (duty cycle) é a porcentagem de tempo que o sinal PWM fica em nível alto (1) dentro de um ciclo completo.
 // ➡ Em outras palavras: é o quanto do tempo o sinal fica ligado.
@@ -31,17 +30,17 @@ void setup_channel_motores(){
     ledc_channel_config(&chanel_config_motor_1);
 
     // ====================================MOTOR 2 ==================================================================
-    // ledc_channel_config_t chanel_config_motor_2 = {
-    //     .gpio_num = MOTOR_2,
-    //     .speed_mode = LEDC_LOW_SPEED_MODE,
-    //     .channel = LEDC_CHANNEL_1,
-    //     .intr_type = LEDC_INTR_DISABLE, 
-    //     .timer_sel = LEDC_TIMER_1,
-    //     .duty = 0, 
-    //     .hpoint = 0
-    // };
+    ledc_channel_config_t chanel_config_motor_2 = {
+        .gpio_num = MOTOR_2,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = LEDC_CHANNEL_1,
+        .intr_type = LEDC_INTR_DISABLE, 
+        .timer_sel = LEDC_TIMER_1,
+        .duty = 0, 
+        .hpoint = 0
+    };
 
-    // ledc_channel_config(&chanel_config_motor_2);
+    ledc_channel_config(&chanel_config_motor_2);
 }
 
 void setup_timer_motores(){
@@ -60,15 +59,15 @@ void setup_timer_motores(){
     ledc_timer_config(&timer_config_motor_1);
     
     // ====================================MOTOR 2 ==================================================================
-    // ledc_timer_config_t timer_config_motor_2 = {
-    //     .speed_mode = LEDC_LOW_SPEED_MODE,
-    //     .timer_num =  LEDC_TIMER_1,
-    //     .freq_hz = 1000,
-    //     .duty_resolution = LEDC_TIMER_8_BIT,
-    //     .clk_cfg = LEDC_AUTO_CLK
-    // };
+    ledc_timer_config_t timer_config_motor_2 = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .timer_num =  LEDC_TIMER_1,
+        .freq_hz = 1000,
+        .duty_resolution = LEDC_TIMER_8_BIT,
+        .clk_cfg = LEDC_AUTO_CLK
+    };
 
-    // ledc_timer_config(&timer_config_motor_2);
+    ledc_timer_config(&timer_config_motor_2);
 
     
 }
@@ -76,4 +75,41 @@ void setup_timer_motores(){
 void setup_motores(){
     setup_timer_motores();
     setup_channel_motores();
+}
+
+// I/O MOTORES ====================================================================================
+
+void ligar_motores(){
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 1000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 1000, LEDC_FADE_WAIT_DONE);
+    printf("led ligado!!!\n");
+}
+
+void desligar_motores(){
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 1000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 1000, LEDC_FADE_WAIT_DONE);
+    printf("led desligado!!!\n");
+}
+
+// tipos de vibrações, TEXTURAS ========================================================================================
+
+void vibrar_curto(){
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 1000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 1000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 1000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 1000, LEDC_FADE_WAIT_DONE);   
+}
+
+void vibrar_medio(){
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 1000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 1000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 3000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 3000, LEDC_FADE_WAIT_DONE);
+}
+
+void vibrar_longo(){
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 1000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 1000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 5000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 5000, LEDC_FADE_WAIT_DONE);
 }

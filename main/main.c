@@ -17,7 +17,6 @@
 
 
 
-
 void app_main(void){
     ledc_fade_func_install(0); // habilida o efeito de fading
     setup_motores();
@@ -27,13 +26,13 @@ void app_main(void){
 
     while(true)
     {
-        ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 1000, LEDC_FADE_WAIT_DONE);
-        // ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 1000, LEDC_FADE_WAIT_DONE);
-        printf("led desligado!!!\n");
-  
-        ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 2000, LEDC_FADE_WAIT_DONE);
-        // ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 2000, LEDC_FADE_WAIT_DONE);
-        printf("led ligado!!!\n");
+        ligar_motores();
+        vibrar_curto();
+        vibrar_medio();
+        vibrar_longo();
+        desligar_motores();
+        vTaskDelay(pdMS_TO_TICKS(100));  // 1 segundo
+
 
     }
 }
