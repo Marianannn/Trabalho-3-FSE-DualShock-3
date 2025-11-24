@@ -6,6 +6,7 @@
 #include "esp_system.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
+#include "esp_log.h"
 #include "motor.h"
 
 
@@ -13,6 +14,12 @@
 // O duty (duty cycle) é a porcentagem de tempo que o sinal PWM fica em nível alto (1) dentro de um ciclo completo.
 // ➡ Em outras palavras: é o quanto do tempo o sinal fica ligado.
 // Duty é a quantidade de energia média entregue ao LED/motor
+
+QueueHandle_t pwmQueue = NULL;
+QueueHandle_t vibrationQueue = NULL;
+
+#define PWM_MAX 255
+#define PWM_MIN 0
 
 
 void setup_channel_motores(){
@@ -75,41 +82,87 @@ void setup_timer_motores(){
 void setup_motores(){
     setup_timer_motores();
     setup_channel_motores();
+
+    // criando filas de pwm e de tipos de vibração
+    pwmQueue = xQueueCreate(10, sizeof(uint8_t));
+    vibrationQueue = xQueueCreate(10, sizeof(uint8_t));
+
+    if (!pwmQueue || !vibrationQueue)
+        ESP_LOGE("FILAS", "Erro ao criar filas de motor");
 }
 
 // I/O MOTORES ====================================================================================
 
 void ligar_motores(){
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 1000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 1000, LEDC_FADE_WAIT_DONE);
-    printf("led ligado!!!\n");
+    setar_velocidade(255);
+    printf("motor ligado!!!\n");
+    vTaskDelay(170);
 }
 
 void desligar_motores(){
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 1000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 1000, LEDC_FADE_WAIT_DONE);
-    printf("led desligado!!!\n");
+    setar_velocidade(0);
+    printf("motor desligado!!!\n");
+    vTaskDelay(170);
 }
+
+// Setar velocidade/direções
+
+void setar_direcao(int dir){
+
+}
+
+void setar_velocidade(int vel){
+    ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
+    ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
+
+    //motor 1
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, vel);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+
+    //motor 2
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, vel);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
+}
+
+
 
 // tipos de vibrações, TEXTURAS ========================================================================================
 
 void vibrar_curto(){
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 1000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 1000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 1000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 1000, LEDC_FADE_WAIT_DONE);   
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 150, LEDC_FADE_NO_WAIT);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 150, LEDC_FADE_NO_WAIT);
+    vTaskDelay(170);
+
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 150, LEDC_FADE_NO_WAIT);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 150, LEDC_FADE_NO_WAIT);   
+    vTaskDelay(170);
 }
 
 void vibrar_medio(){
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 1000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 1000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 3000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 3000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 150, LEDC_FADE_NO_WAIT);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 150, LEDC_FADE_NO_WAIT);
+    vTaskDelay(170);
+
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 250, LEDC_FADE_NO_WAIT);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 250, LEDC_FADE_NO_WAIT);
+    vTaskDelay(270);
 }
 
 void vibrar_longo(){
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 1000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 1000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 5000, LEDC_FADE_WAIT_DONE);
-    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 5000, LEDC_FADE_WAIT_DONE);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0, 150, LEDC_FADE_NO_WAIT);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0, 150, LEDC_FADE_NO_WAIT);
+    vTaskDelay(170);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 255, 350, LEDC_FADE_NO_WAIT);
+    ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255, 350, LEDC_FADE_NO_WAIT);
+    vTaskDelay(370);
+}
+
+// uso de fades
+
+void habilitar_fade() {
+    ledc_fade_func_install(0);
+}
+
+void desabilitar_fade() {
+    ledc_fade_func_uninstall();
 }
