@@ -11,12 +11,14 @@
 #include "motor_task.h"
 #include "joystick.h" 
 #include "joystick_task.h" 
+#include "gpio_config.h"
 
 #define LED 4
 
 //===============================TEMPORARIO=======================================
 #define JOYSTICK_X_CHANNEL  ADC_CHANNEL_3  // Corresponde ao GPIO 15
 #define JOYSTICK_Y_CHANNEL  ADC_CHANNEL_2  // Corresponde ao GPIO 2
+#define JOYSTICK_BTN_GPIO  GPIO_NUM_18
 //===============================TEMPORARIO=======================================
 
 void app_main(void){
@@ -24,7 +26,7 @@ void app_main(void){
     // MOTORES
     setup_motores();
     habilitar_fade();
-    setup_joystick(JOYSTICK_X_CHANNEL, JOYSTICK_Y_CHANNEL);
+    setup_joystick(JOYSTICK_X_CHANNEL, JOYSTICK_Y_CHANNEL, JOYSTICK_BTN_GPIO);
 
     xTaskCreate(motor_task, "motor_task", 4096, NULL, 5, NULL);
     xTaskCreate(bluetooth_motor_task, "bluetooth_motor_task", 4096, NULL, 5, NULL);

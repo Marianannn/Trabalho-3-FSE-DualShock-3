@@ -16,18 +16,21 @@ const char* obter_estado(int valor, const char* nome_min, const char* nome_max) 
     }
 }
 void joystick_task(void *pvParameters) {
-    int valor_x, valor_y;
+    int valor_x, valor_y, estado_botao;
 
     while (1) {
         valor_x = ler_joystick_x();
         valor_y = ler_joystick_y();
+        estado_botao = ler_joystick_botao();
 
         const char* texto_x = obter_estado(valor_x, "CIMA", "BAIXO");
         const char* texto_y = obter_estado(valor_y, "DIREITA", "ESQUERDA");
+        const char* texto_botao = (estado_botao == 0) ? "PRESSIONADO" : "SOLTO";
 
-        ESP_LOGI(TAG, "Estado: [X: %s (%d)] | [Y: %s (%d)]", 
+        ESP_LOGI(TAG, "Estado: [X: %s (%d)] | [Y: %s (%d)] | [Botao: %s ]", 
                  texto_x, valor_x, 
-                 texto_y, valor_y);
+                 texto_y, valor_y,
+                 texto_botao);
 
         vTaskDelay(pdMS_TO_TICKS(200));
     }
