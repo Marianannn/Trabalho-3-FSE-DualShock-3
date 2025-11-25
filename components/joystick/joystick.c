@@ -4,54 +4,65 @@
 
 static const char *TAG = "JOYSTICK_DRIVER";
 
-static adc_oneshot_unit_handle_t adc_handle;
+static adc_oneshot_unit_handle_t adc_handle = NULL;
 
-static adc_channel_t g_canal_x;
-static adc_channel_t g_canal_y;
-static gpio_num_t g_pino_botao;
-
-void setup_joystick(adc_channel_t canal_x, adc_channel_t canal_y, gpio_num_t pino_botao) {
-    
-    g_canal_x = canal_x;
-    g_canal_y = canal_y;
-    g_pino_botao = pino_botao;
+void joystick_init_adc(void) {
+    if (adc_handle != NULL) {
+        return;
+    }
 
     adc_oneshot_unit_init_cfg_t init_config = {
-        .unit_id = ADC_UNIT_2, // Atenção: Se mudar pino, confirmar se ainda e Unit 2
+        .unit_id = ADC_UNIT_1, // ADC1 para pinos 32, 33, 34, 35
         .clk_src = ADC_DIGI_CLK_SRC_DEFAULT,
     };
     ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle));
+    
+    ESP_LOGI(TAG, "Unidade ADC1 Inicializada com Sucesso!");
+}
 
+Joystick_t setup_joystick_struct(adc_channel_t canal_x, adc_channel_t canal_y, gpio_num_t pino_botao) {
+    
+    joystick_init_adc();
+
+    // Cria a estrutura local
+    Joystick_t new_joystick;
+    new_joystick.canal_x = canal_x;
+    new_joystick.canal_y = canal_y;
+    new_joystick.pino_botao = pino_botao;
+
+    // Configura os canais especificos deste joystick
     adc_oneshot_chan_cfg_t config = {
         .bitwidth = ADC_BITWIDTH_DEFAULT, 
         .atten = ADC_ATTEN_DB_12,
     };
 
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, g_canal_x, &config));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, g_canal_y, &config));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, new_joystick.canal_x, &config));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, new_joystick.canal_y, &config));
 
-    gpio_set_direction(g_pino_botao, GPIO_MODE_INPUT);
-
-    gpio_set_pull_mode(g_pino_botao, GPIO_PULLUP_ONLY);
+    // 4. Configura o botao correspondte
+    gpio_set_direction(new_joystick.pino_botao, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(new_joystick.pino_botao, GPIO_PULLUP_ONLY);
     
-    ESP_LOGI(TAG, "Joystick Configurado nos canais %d e %d", g_canal_x, g_canal_y);
+    ESP_LOGI(TAG, "Joystick Configurado: X(ch%d) Y(ch%d) Btn(%d)", canal_x, canal_y, pino_botao);
+
+    return new_joystick;
 }
 
-int ler_joystick_x(void) {
+int ler_joystick_x(Joystick_t joystick) {
     int valor = 0;
     // Usa a variavel guardada g_canal_x
-    ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, g_canal_x, &valor));
+    ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, joystick.canal_x, &valor));
     return valor;
 }
 
-int ler_joystick_y(void) {
+int ler_joystick_y(Joystick_t joystick) {
     int valor = 0;
     // Usa a variável guardada g_canal_y
-    ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, g_canal_y, &valor));
+    ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, joystick.canal_y, &valor));
     return valor;
 }
 
-int ler_joystick_botao(void) {
+int ler_joystick_botao(Joystick_t joystick) {
     // Retorna 0 (Pressionado) ou 1 (Solto)
-    return gpio_get_level(g_pino_botao);
+    return gpio_get_level(joystick.pino_botao);
 }

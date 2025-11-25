@@ -15,18 +15,16 @@
 
 #define LED 4
 
-//===============================TEMPORARIO=======================================
-#define JOYSTICK_X_CHANNEL  ADC_CHANNEL_3  // Corresponde ao GPIO 15
-#define JOYSTICK_Y_CHANNEL  ADC_CHANNEL_2  // Corresponde ao GPIO 2
-#define JOYSTICK_BTN_GPIO  GPIO_NUM_18
-//===============================TEMPORARIO=======================================
+extern Joystick_t joystick_direita;
+extern Joystick_t joystick_esquerda;
 
 void app_main(void){
 
     // MOTORES
     setup_motores();
     habilitar_fade();
-    setup_joystick(JOYSTICK_X_CHANNEL, JOYSTICK_Y_CHANNEL, JOYSTICK_BTN_GPIO);
+    joystick_direita = setup_joystick_struct(JOYSTICK_DIR_X, JOYSTICK_DIR_Y, JOYSTICK_DIR_BTN);
+    joystick_esquerda = setup_joystick_struct(JOYSTICK_ESQ_X, JOYSTICK_ESQ_Y, JOYSTICK_ESQ_BTN);
 
     xTaskCreate(motor_task, "motor_task", 4096, NULL, 5, NULL);
     xTaskCreate(bluetooth_motor_task, "bluetooth_motor_task", 4096, NULL, 5, NULL);
