@@ -16,7 +16,7 @@
 #include "services/gatt/ble_svc_gatt.h"
 
 #ifdef CONFIG_BT_NIMBLE_ENABLED
-#include "esp_nimble_hci.h" 
+#include "esp_nimble_hci.h"
 #endif
 
 #include "driver/gpio.h"
@@ -49,7 +49,7 @@ static const uint8_t hid_report_map[] __attribute__((unused)) = {
 };
 
 // --- GPIO pin mapping ---
-#define BUTTON_BOOT_PIN      0   // BOOT no devkit (usado aqui como "botão virtual" R2)
+#define BUTTON_BOOT_PIN      0   // BOOT no devkit -> usado como R2 virtual
 #define BUTTON_TRIANGLE_PIN  13
 #define BUTTON_CIRCLE_PIN    12
 #define BUTTON_CROSS_PIN     14
@@ -79,16 +79,15 @@ static QueueHandle_t btn_queue = NULL;
 
 static hid_report_t current_report = {0, 0, 0};
 
-// --- Prototypes NimBLE HID functions  ---
+// NimBLE prototypes
 static int ble_app_gap_event(struct ble_gap_event *event, void *arg);
 static void ble_app_on_sync(void);
 static void host_task(void *param);
 
-// Identificador do conn handle (atual)
 static uint16_t conn_handle = 0xffff;
+static uint16_t hid_input_report_handle = 0; // preenchido pelo GATT quando adicionado
 
-static uint16_t hid_input_report_handle = 0;
-
+// --- send HID report as notification ---
 static void send_hid_report_to_host(hid_report_t *rpt) {
     if (conn_handle == 0xffff) {
         ESP_LOGI(TAG, "Nenhum cliente conectado - não envio");
@@ -99,16 +98,13 @@ static void send_hid_report_to_host(hid_report_t *rpt) {
         return;
     }
 
-    int rc;
-    struct os_mbuf *om = NULL;
-
-    om = ble_hs_mbuf_from_flat(rpt, sizeof(hid_report_t));
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(rpt, sizeof(hid_report_t));
     if (om == NULL) {
         ESP_LOGW(TAG, "Falha ao alocar mbuf para notify");
         return;
     }
 
-    rc = ble_gattc_notify_custom(conn_handle, hid_input_report_handle, om);
+    int rc = ble_gattc_notify_custom(conn_handle, hid_input_report_handle, om);
     if (rc != 0) {
         ESP_LOGW(TAG, "Falha ao notificar host rc=%d", rc);
     } else {
@@ -116,6 +112,7 @@ static void send_hid_report_to_host(hid_report_t *rpt) {
     }
 }
 
+// --- ISR and button task ---
 static void IRAM_ATTR gpio_isr_handler(void *arg) {
     uint32_t gpio = (uint32_t) arg;
     uint8_t btn_mask = 0;
@@ -124,7 +121,7 @@ static void IRAM_ATTR gpio_isr_handler(void *arg) {
     else if (gpio == BUTTON_CROSS_PIN) btn_mask = BTN_CROSS_MASK;
     else if (gpio == BUTTON_SQUARE_PIN) btn_mask = BTN_SQUARE_MASK;
 
-    int level = gpio_get_level(gpio);
+    int level = gpio_get_level(gpio); // active-low assumed
     btn_event_t e;
     e.gpio_num = gpio;
     e.btn_mask = btn_mask;
@@ -141,15 +138,10 @@ static void btn_task(void *arg) {
             vTaskDelay(pdMS_TO_TICKS(GPIO_DEBOUNCE_MS));
             int level = gpio_get_level(ev.gpio_num);
             btn_event_type_t real_type = (level == 0) ? EVT_BTN_PRESS : EVT_BTN_RELEASE;
-            if (real_type != ev.type) {
-                continue;
-            }
+            if (real_type != ev.type) continue;
 
-            if (ev.type == EVT_BTN_PRESS) {
-                current_report.buttons |= ev.btn_mask;
-            } else {
-                current_report.buttons &= ~ev.btn_mask;
-            }
+            if (ev.type == EVT_BTN_PRESS) current_report.buttons |= ev.btn_mask;
+            else current_report.buttons &= ~ev.btn_mask;
 
             const char *name = "UNKNOWN";
             if (ev.btn_mask == BTN_TRIANGLE_MASK) name = "Triangulo";
@@ -164,11 +156,12 @@ static void btn_task(void *arg) {
     }
 }
 
+// ---------------- GATT definitions ----------------
 static ble_uuid16_t hid_svc_uuid = BLE_UUID16_INIT(0x1812);
 
 static struct ble_gatt_chr_def hid_chr_defs[] = {
     {
-        .uuid = BLE_UUID16_DECLARE(0x2A4D),
+        .uuid = BLE_UUID16_DECLARE(0x2A4D), /* HID Report */
         .access_cb = NULL,
         .val_handle = &hid_input_report_handle,
         .flags = BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_READ,
@@ -182,9 +175,10 @@ static struct ble_gatt_svc_def gatt_svr_svcs[] = {
         .uuid = &hid_svc_uuid.u,
         .characteristics = hid_chr_defs,
     },
-    { 0 } 
+    { 0 }
 };
 
+// ---------------- GAP callbacks ----------------
 static int ble_app_gap_event(struct ble_gap_event *event, void *arg) {
     switch (event->type) {
     case BLE_GAP_EVENT_CONNECT:
@@ -210,6 +204,7 @@ static int ble_app_gap_event(struct ble_gap_event *event, void *arg) {
     return 0;
 }
 
+// ---------------- on_sync: register services and start advertising ----------------
 static void ble_app_on_sync(void)
 {
     int rc;
@@ -234,10 +229,38 @@ static void ble_app_on_sync(void)
 
     ESP_LOGI(TAG, "hid_input_report_handle = %u", hid_input_report_handle);
 
+    /* Configure advertisement fields: Flags + Complete Local Name + TX Power */
+    {
+        struct ble_hs_adv_fields fields;
+        const char *device_name = ble_svc_gap_device_name();
+        memset(&fields, 0, sizeof(fields));
+
+        fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
+        fields.tx_pwr_lvl_is_present = 1;
+        fields.tx_pwr_lvl = 0;
+
+        if (device_name) {
+            fields.name = (uint8_t *)device_name;
+            fields.name_len = strlen(device_name);
+            fields.name_is_complete = 1;
+        }
+
+        int r = ble_gap_adv_set_fields(&fields);
+        if (r != 0) {
+            ESP_LOGE(TAG, "ble_gap_adv_set_fields rc=%d", r);
+        } else {
+            ESP_LOGI(TAG, "adv fields set ok (name='%s')", device_name ? device_name : "(null)");
+        }
+    }
+
+    /* advertising params */
     struct ble_gap_adv_params adv_params;
     memset(&adv_params, 0, sizeof(adv_params));
     adv_params.conn_mode = BLE_GAP_CONN_MODE_UND;
     adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
+    /* intervals: 0x20 -> ~40ms, 0x40 -> ~80ms (good for discovery) */
+    adv_params.itvl_min = 0x20;
+    adv_params.itvl_max = 0x40;
 
     rc = ble_gap_adv_start(BLE_OWN_ADDR_PUBLIC, NULL, BLE_HS_FOREVER, &adv_params, ble_app_gap_event, NULL);
     if (rc != 0) {
@@ -247,12 +270,14 @@ static void ble_app_on_sync(void)
     }
 }
 
+// ---------------- host task ----------------
 static void host_task(void *param) {
     ESP_LOGI(TAG, "NimBLE host task start");
     nimble_port_run();
     nimble_port_freertos_deinit();
 }
 
+// ---------------- init BLE ----------------
 static void ble_init(void) {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -277,8 +302,10 @@ static void ble_init(void) {
     nimble_port_freertos_init(host_task);
 }
 
+// ---------------- application main ----------------
 void app_main(void) {
     ESP_LOGI(TAG, "Inicializando BLE HID Gamepad (template)");
+
     btn_queue = xQueueCreate(16, sizeof(btn_event_t));
     xTaskCreate(btn_task, "btn_task", 4096, NULL, 8, NULL);
 
