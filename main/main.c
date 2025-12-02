@@ -23,29 +23,39 @@
 
 static const char *TAG = "BLE_HID_GAMEPAD";
 
+static uint8_t report_ref_desc[] = { 1, 1 }; // ReportID=1, InputReport
+
+
 static const uint8_t hid_report_map[] __attribute__((unused)) = {
-    0x05, 0x01,       // Usage Page (Generic Desktop)
-    0x09, 0x04,       // Usage (Joystick)
-    0xA1, 0x01,       // Collection (Application)
-      // Buttons
-      0x05, 0x09,     // Usage Page (Button)
-      0x19, 0x01,     // Usage Minimum (Button 1)
-      0x29, 0x08,     // Usage Maximum (Button 8)
-      0x15, 0x00,     // Logical Minimum (0)
-      0x25, 0x01,     // Logical Maximum (1)
-      0x95, 0x08,     // Report Count (8)
-      0x75, 0x01,     // Report Size (1)
-      0x81, 0x02,     // Input (Data,Var,Abs)
-      // X and Y axes
-      0x05, 0x01,     // Usage Page (Generic Desktop)
-      0x09, 0x30,     // Usage (X)
-      0x09, 0x31,     // Usage (Y)
-      0x15, 0x81,     // Logical Min (-127)
-      0x25, 0x7F,     // Logical Max (127)
-      0x75, 0x08,     // Report Size (8)
-      0x95, 0x02,     // Report Count (2)
-      0x81, 0x02,     // Input (Data,Var,Abs)
-    0xC0              // End Collection
+0x05, 0x01,                    // Usage Page (Generic Desktop)
+    0x09, 0x04,                    // Usage (Joystick)
+    0xA1, 0x01,                    // Collection (Application)
+
+        0x85, 0x01,                //   Report ID 1
+
+        // ---- Buttons (8) ----
+        0x05, 0x09,                //   Usage Page (Button)
+        0x19, 0x01,                //   Usage Minimum (Button 1)
+        0x29, 0x08,                //   Usage Maximum (Button 8)
+        0x15, 0x00,                //   Logical Minimum (0)
+        0x25, 0x01,                //   Logical Maximum (1)
+        0x95, 0x08,                //   Report Count (8)
+        0x75, 0x01,                //   Report Size (1)
+        0x81, 0x02,                //   Input (Data,Var,Abs)
+
+        // ---- Axes ----
+        0x05, 0x01,                //   Usage Page (Generic Desktop)
+        0x09, 0x30,                //   Usage (X)
+        0x09, 0x31,                //   Usage (Y)
+
+        0x15, 0x81,                //   Logical Minimum (-127)
+        0x25, 0x7F,                //   Logical Maximum (127)
+
+        0x75, 0x08,                //   Report Size (8 bits per axis)
+        0x95, 0x02,                //   Report Count (2)
+        0x81, 0x02,                //   Input (Data,Var,Abs)
+
+    0xC0                           // End Collection
 };
 
 // --- GPIO pin mapping ---
@@ -159,24 +169,85 @@ static void btn_task(void *arg) {
 // ---------------- GATT definitions ----------------
 static ble_uuid16_t hid_svc_uuid = BLE_UUID16_INIT(0x1812);
 
-static struct ble_gatt_chr_def hid_chr_defs[] = {
-    {
-        .uuid = BLE_UUID16_DECLARE(0x2A4D), /* HID Report */
-        .access_cb = NULL,
-        .val_handle = &hid_input_report_handle,
-        .flags = BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_READ,
-    },
-    { 0 }
-};
+// static const struct ble_gatt_chr_def hid_report_map_chr[] = {
+//     {
+//         .uuid = BLE_UUID16_DECLARE(0x2A4B), // Report Map
+//         .access_cb = NULL,
+//         .flags = BLE_GATT_CHR_F_READ,
+//     },
+//     { 0 }
+// };
+
+static int hid_info_access_cb(uint16_t conn_handle, uint16_t attr_handle,
+                              struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    uint8_t hid_info[4] = {0x11, 0x01, 0x00, 0x03}; // bcdHID, bCountryCode, Flags
+    return os_mbuf_append(ctxt->om, hid_info, sizeof(hid_info));
+}
+static int hid_report_map_access_cb(uint16_t conn_handle, uint16_t attr_handle,
+                                    struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    return os_mbuf_append(ctxt->om, hid_report_map, sizeof(hid_report_map));
+}
+static int hid_control_point_access_cb(uint16_t conn_handle, uint16_t attr_handle,
+                                       struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    return 0; // apenas aceita writes
+}
+static int hid_input_access_cb(uint16_t conn_handle, uint16_t attr_handle,
+                               struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    return os_mbuf_append(ctxt->om, (uint8_t*)&current_report, sizeof(current_report));
+}
+static int hid_report_ref_desc_access_cb(uint16_t conn_handle, uint16_t attr_handle,
+                                        struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    uint8_t report_ref[2] = {1, 1}; // ReportID=1, Input Report
+    return os_mbuf_append(ctxt->om, report_ref, sizeof(report_ref));
+}
+
+
 
 static struct ble_gatt_svc_def gatt_svr_svcs[] = {
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = &hid_svc_uuid.u,
-        .characteristics = hid_chr_defs,
+        .uuid = BLE_UUID16_DECLARE(0x1812), // HID
+        .characteristics = (struct ble_gatt_chr_def[]) {
+            {
+                .uuid = BLE_UUID16_DECLARE(0x2A4A),
+                .access_cb = hid_info_access_cb,
+                .flags = BLE_GATT_CHR_F_READ,
+            },
+            {
+                .uuid = BLE_UUID16_DECLARE(0x2A4B),
+                .access_cb = hid_report_map_access_cb,
+                .flags = BLE_GATT_CHR_F_READ,
+            },
+            {
+                .uuid = BLE_UUID16_DECLARE(0x2A4D),
+                .access_cb = hid_input_access_cb,
+                .val_handle = &hid_input_report_handle,
+                .descriptors = (struct ble_gatt_dsc_def[]) {
+                    {
+                        .uuid = BLE_UUID16_DECLARE(0x2908),
+                        .att_flags = BLE_ATT_F_READ,
+                        .access_cb = hid_report_ref_desc_access_cb,
+                    },
+                    {0}
+                },
+                .flags = BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_READ,
+            },
+            {
+                .uuid = BLE_UUID16_DECLARE(0x2A4C),
+                .access_cb = hid_control_point_access_cb,
+                .flags = BLE_GATT_CHR_F_WRITE_NO_RSP,
+            },
+            {0}
+        }
     },
-    { 0 }
+    {0}
 };
+
 
 // ---------------- GAP callbacks ----------------
 static int ble_app_gap_event(struct ble_gap_event *event, void *arg) {
@@ -184,6 +255,7 @@ static int ble_app_gap_event(struct ble_gap_event *event, void *arg) {
     case BLE_GAP_EVENT_CONNECT:
         if (event->connect.status == 0) {
             conn_handle = event->connect.conn_handle;
+            send_hid_report_to_host(&current_report);
             ESP_LOGI(TAG, "Conectado conn_handle=%d", conn_handle);
         } else {
             ESP_LOGI(TAG, "Falha ao conectar; status=%d", event->connect.status);
