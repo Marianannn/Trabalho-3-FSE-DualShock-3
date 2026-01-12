@@ -10,9 +10,22 @@
 #include "freertos/FreeRTOS.h" // Traz definições essenciais: filas, semáforos, prioridades, tempo de tick
 #include "freertos/task.h" // Biblioteca específica para criação e gerenciamento de tasks (threads)
 #include "esp_system.h" // Contém funções gerais do sistema
+#include "esp_log.h"
+#include "driver/gpio.h"
+#include "driver/ledc.h"
+#include "motor.h"
+#include "motor_task.h"
 
-void app_main(void)
-{
-    printf("Hello world!\n");
+#define LED 4
+
+
+void app_main(void){
+
+    // MOTORES
+    setup_motores();
+    habilitar_fade();
+
+    xTaskCreate(motor_task, "motor_task", 4096, NULL, 5, NULL);
+    xTaskCreate(bluetooth_motor_task, "bluetooth_motor_task", 4096, NULL, 5, NULL);
 
 }
